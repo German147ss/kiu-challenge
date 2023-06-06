@@ -72,7 +72,7 @@ func TestHelloHandlerConcurrency(t *testing.T) {
 	// Aquí se limpia el mapa "names" antes del test.
 	names = make(map[string]bool)
 
-	for i := 0; i < concurrentRequests; i++ { // Este ciclo crea todas las goroutines.
+	for i := 0; i < concurrentRequests; i++ {
 		go func() { // Cada goroutine ejecutará este código.
 			defer wg.Done() // Una vez que esta goroutine termine su trabajo, le informará al WaitGroup que ha terminado.
 
@@ -83,16 +83,14 @@ func TestHelloHandlerConcurrency(t *testing.T) {
 			req, _ := http.NewRequest(http.MethodPost, "/hello", bytes.NewBuffer(postBody))
 			req.Header.Set("Content-Type", "application/json")
 			rr := httptest.NewRecorder()
-			HelloHandler(rr, req) // Aquí se maneja la solicitud.
+			HelloHandler(rr, req)
 
 			var resp HelloResponse
-			// Aquí se decodifica la respuesta del servidor.
 			if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
 				t.Errorf("Error decoding response body: %v", err)
 				return
 			}
 
-			// Aquí se verifica la respuesta del servidor.
 			// Como todas las solicitudes están utilizando el mismo nombre y se están realizando de manera concurrente,
 			// sólo la primera debería obtener un "exists" como false y todas las demás deberían obtenerlo como true.
 			if resp.Exists && resp.Message != "Hello, "+name+"! Welcome back!" {
@@ -103,7 +101,7 @@ func TestHelloHandlerConcurrency(t *testing.T) {
 		}()
 	}
 
-	wg.Wait() // Aquí se espera a que todas las goroutines informen al WaitGroup que han terminado.
+	wg.Wait() // Esperamos..
 
 	// Al final del test, se verifica si el nombre se almacenó correctamente.
 	mu.Lock()

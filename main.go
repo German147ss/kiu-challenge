@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync"
 )
@@ -24,33 +25,57 @@ var (
 	mu    = &sync.Mutex{}
 )
 
-func HelloHandler(w http.ResponseWriter, r *http.Request) {
+const (
+	contentTypeJSON        = "application/json"
+	statusUnprocessable    = http.StatusUnprocessableEntity
+	statusBadRequest       = http.StatusBadRequest
+	statusMethodNotAllowed = http.StatusMethodNotAllowed
+)
 
+const (
+	messageHello       = "Hello, %s!"
+	messageWelcomeBack = "Hello, %s! Welcome back!"
+	errorEmptyName     = "Name field is required"
+)
+
+// HelloHandler maneja las solicitudes a la ruta "/hello"
+func HelloHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
-		if r.Header.Get("Content-Type") != "application/json" {
-			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
+		if r.Header.Get("Content-Type") != contentTypeJSON {
+			http.Error(w, http.StatusText(statusUnprocessable), statusUnprocessable)
 			return
 		}
 
 		var body RequestBody
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), statusBadRequest)
+			return
+		}
+
+		if body.Name == "" {
+			http.Error(w, errorEmptyName, statusBadRequest)
 			return
 		}
 
 		mu.Lock()
 		defer mu.Unlock()
 
-		message := "Hello, " + body.Name + "!"
+		message := ""
 		exists := names[body.Name]
 		if exists {
-			message = "Hello, " + body.Name + "! Welcome back!"
+			message = messageWelcomeBack
+		} else {
+			message = messageHello
 		}
 		names[body.Name] = true
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(HelloResponse{Message: message, Exists: exists})
+		w.Header().Set("Content-Type", contentTypeJSON)
+		response := HelloResponse{
+			Message: fmt.Sprintf(message, body.Name),
+			Exists:  exists,
+		}
+		json.NewEncoder(w).Encode(response)
 
 	case http.MethodGet:
 		mu.Lock()
@@ -66,19 +91,15 @@ func HelloHandler(w http.ResponseWriter, r *http.Request) {
 			resp.Names = allNames
 		}
 
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", contentTypeJSON)
 		json.NewEncoder(w).Encode(resp)
 
 	default:
-		if r.Method != http.MethodPut && r.Method != http.MethodDelete {
-			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
-			return
-		}
-		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		http.Error(w, http.StatusText(statusMethodNotAllowed), statusMethodNotAllowed)
 	}
 }
 
 func main() {
 	http.HandleFunc("/hello", HelloHandler)
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe("0.0.0.0:8080", nil)
 }
